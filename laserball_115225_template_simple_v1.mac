@@ -1,0 +1,107 @@
+#   Date: 07/29/2014
+#   Contact: G.Prior (gersende@lip.pt)
+#   Revision: first revision
+#   Date: 31/03/2017
+#   Updated: J. Maneira (maneira@lip.pt)
+#   Revision: trigger settings, DB updates
+
+#   SOC laserball N2 337 nm
+#   9000 gammas/ev (Nhits ~350) for the water phase
+#   x = 0 mm, y = 0 mm, z = 0
+#   orientation = 0
+#   March 2017: syntax updates (DB table is now LASERBALL_SIMULATION)
+#
+
+/rat/physics_list/OmitMuonicProcesses true
+/rat/physics_list/OmitHadronicProcesses true
+
+# Tables for the particular RUN
+/rat/db/load /home/jpyanez/snoplus/data/snoplus_dbfiles/tables_115225-115225.ratdb
+###/rat/db/load /home/jpyanez/snoplus/data/snoplus_dbfiles/my_tables/GREY_DISC_PARAMETERS_TUNED_INAV.ratdb
+
+### 
+# Settings from LaserballSource.mac in RAT
+###
+# Simulate noise using per-pmt rates:
+/rat/db/set NOISE_MC noise_flag 2
+# Read the per-pmt noise rates from the NOISE_RUN_INTEGRATED table:
+/rat/db/set NOISE_MC integ_noise_flag 1
+/rat/db/set DAQ perfect_trigger 1
+
+# Input for the SOC file
+/rat/db/set LASERBALL_SIMULATION simulation_mode 2 # Load laserball parameters from ratdb
+/rat/db/set LASERBALL_SIMULATION intensity 9000
+/rat/db/set LASERBALL_SIMULATION lb_id "JUL18"
+/rat/db/set LASERBALL_SIMULATION angle_mode "SINCOEF"
+
+###
+# Select the geometry
+###
+/rat/db/set DETECTOR geo_file "geo/snoplus_water_simple.geo"
+
+####
+# Enable the GreyDisc
+####
+/rat/db/set GEO[innerPMT] grey_disc [1]
+/rat/db/set GEO[innerPMT] add_bucket [1]
+/rat/db/set GEO[innerPMT] use_envelope [1]
+/rat/db/set GEO[innerPMT] grey_disc_model_params ["DiscOpticsTuned_InAV"]
+/rat/db/set GEO[hqePMT] grey_disc_model_params ["DiscOpticsTuned_InAV"]
+
+##############################
+### GREY DISC PARAMETERS
+
+## PARAMETERS_TO_TUNE
+
+
+## END OF TUNING
+
+## Probability of being specular (mx+b for part A and B)
+
+/rat/db/set GREY_DISC_PARAMETERS[DiscOpticsTuned_InAV] spec_proba_m 0.25 ### 0.25 - Slope, don't touch
+/rat/db/set GREY_DISC_PARAMETERS[DiscOpticsTuned_InAV] spec_probb_m 2. ### 2.0  - This only matters for external runs
+
+## Phi sigma intercept for models a and b
+/rat/db/set GREY_DISC_PARAMETERS[DiscOpticsTuned_InAV] phis_b_a 6.0 ### 6.0 - Very smeared
+/rat/db/set GREY_DISC_PARAMETERS[DiscOpticsTuned_InAV] phis_b_b 3.3 ### 3.3 - Needs external tuning
+
+/rat/db/set GREY_DISC_PARAMETERS[DiscOpticsTuned_InAV] nonspec_m -0.80 ### -0.80 - Tuned, shape effect
+
+## Break of the theta angle for change of behavior. Should be defined by geometry
+/rat/db/set GREY_DISC_PARAMETERS[DiscOpticsTuned_InAV] theta_break 0.85 ### 0.85 - Needs external run for tuning
+
+## Time delays, independent of the process or reflection
+/rat/db/set GREY_DISC_PARAMETERS[DiscOpticsTuned_InAV] tdel_mean  0.6  ### 0.6 - Very small impact
+/rat/db/set GREY_DISC_PARAMETERS[DiscOpticsTuned_InAV] tdel_std   0.43 ### 0.43 - Very small impact
+##############################
+
+
+/run/initialize
+
+# BEGIN EVENT LOOP
+/rat/proc frontend
+/rat/proc trigger
+/rat/proc eventbuilder
+/rat/proc calibratePMT
+
+/rat/proc count
+/rat/procset update 10
+
+/rat/proc/if trigTypeSelector
+/rat/procset trigType "EXTASY"
+    /rat/proc socdata
+    /rat/proc outsoc
+/rat/proc/endif
+
+
+#/rat/proc outsoc
+
+# END EVENT LOOP
+
+# Choose the laserball generator from fixed point, uniform in time
+/generator/add combo vertexlaserball:poslaserball:poisson
+
+/generator/rate/set 100
+
+/rat/run/start
+exit
